@@ -114,9 +114,7 @@
     </div>
 
     <script>
-        // ==========================================
-        // 1. PINPOINT: ADD YOUR BARCODES HERE
-        // ==========================================
+        // --- PINPOINT: ADD YOUR BARCODES HERE ---
         const DATABASE = {
             APPROVED: ["123456", "789012", "ABC-100"],
             NOT_APPROVED: ["654321", "000000", "XYZ-999"],
@@ -129,9 +127,6 @@
         let isScanning = false;
         const html5QrCode = new Html5Qrcode("reader");
 
-        // ==========================================
-        // 2. PINPOINT: STATUS LOGIC
-        // ==========================================
         function getStatus(code) {
             if (DATABASE.APPROVED.includes(code)) return "Approved";
             if (DATABASE.NOT_APPROVED.includes(code)) return "Not Approved";
@@ -149,7 +144,7 @@
                         { facingMode: "environment" }, 
                         { 
                             fps: 20, 
-                            qrbox: (w, h) => ({ width: w * 0.8, height: w * 0.3 }), // 50% narrowed focus
+                            qrbox: (w, h) => ({ width: w * 0.8, height: w * 0.3 }),
                             aspectRatio: 1.0 
                         },
                         onScanSuccess
@@ -157,7 +152,7 @@
                     isScanning = true;
                     btn.className = "btn-camera-toggle camera-on";
                     text.innerText = "Stop Camera";
-                } catch (err) { alert("Camera Error"); }
+                } catch (err) { alert("Camera Error: " + err); }
             } else {
                 await html5QrCode.stop();
                 isScanning = false;
@@ -168,20 +163,28 @@
 
         function onScanSuccess(decodedText) {
             const now = Date.now();
-            if (decodedText === lastCode && (now - lastTime) < 2000) return;
+            
+            // --- PINPOINT: 1 SECOND INTERVAL LOGIC ---
+            // If the code is the same as the last one, wait 1000ms (1s) before allowing another scan
+            if (decodedText === lastCode && (now - lastTime) < 1000) {
+                return;
+            }
 
             lastCode = decodedText;
             lastTime = now;
 
-            // Visual feedback
+            // Visual feedback (Flash)
             const flash = document.getElementById('flash');
             flash.classList.add('flash-active');
             setTimeout(() => flash.classList.remove('flash-active'), 150);
+            
+            // Haptic feedback
             if (navigator.vibrate) navigator.vibrate(70);
 
-            // Determine Status based on Database
+            // Determine Status
             const statusResult = getStatus(decodedText);
 
+            // Add to history
             scanHistory.unshift({
                 id: Date.now(),
                 code: decodedText,
@@ -226,12 +229,16 @@
         }
 
         function exportToCSV() {
+            if (scanHistory.length === 0) {
+                alert("No data to export");
+                return;
+            }
             const csv = "Barcode,Status,Time\n" + scanHistory.map(e => `"${e.code}","${e.status}","${e.time}"`).join("\n");
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `scans.csv`;
+            a.download = `barcode_scans_${new Date().toLocaleDateString()}.csv`;
             a.click();
         }
 
