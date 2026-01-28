@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Barcode Validator Pro - Enterprise</title>
+    <title>Barcode Validator - Hardcoded DB</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -18,7 +18,6 @@
             height: 100vh; display: flex; flex-direction: column; overflow: hidden;
         }
 
-        /* Layout Sections */
         #scanner-wrapper { position: relative; height: 30vh; background: #000; }
         #reader { width: 100% !important; height: 100% !important; border: none !important; }
         
@@ -28,7 +27,6 @@
             z-index: 10; padding: 16px; box-shadow: 0 -10px 20px rgba(0,0,0,0.3);
         }
 
-        /* Stats Bar */
         .stats-bar {
             display: flex; justify-content: space-between; align-items: center;
             background: white; padding: 10px 15px; border-radius: 12px;
@@ -37,7 +35,6 @@
         }
         .stat-highlight { color: var(--primary); font-weight: 800; }
 
-        /* Buttons */
         .action-row { display: flex; gap: 10px; margin-bottom: 15px; }
         .btn {
             border: none; border-radius: 12px; padding: 12px; 
@@ -47,38 +44,16 @@
         .btn-outline { background: white; border: 1px solid #e2e8f0; color: var(--dark); flex: 1; }
         .btn-stop { background: var(--danger); color: white; flex: 2; }
 
-        /* List Styling - Optimized for scroll performance */
         .history-list { flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         .scan-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 12px; background: white; border-radius: 10px; margin-bottom: 8px;
             border-left: 4px solid #cbd5e1;
-            animation: slideIn 0.2s ease-out;
         }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
         .status-Approved { border-left-color: var(--success); }
         .status-Not-Approved { border-left-color: var(--danger); }
         .status-Re-pack { border-left-color: var(--warning); }
-
-        /* Database Modal */
-        #db-modal {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.8); 
-            display: none; z-index: 100; padding: 20px; overflow-y: auto;
-        }
-        .modal-content { background: white; border-radius: 20px; padding: 20px; max-width: 500px; margin: auto; }
-        textarea { 
-            width: 100%; height: 100px; margin-top: 8px; border: 1px solid #e2e8f0; 
-            border-radius: 8px; padding: 10px; font-family: monospace; font-size: 12px;
-            resize: none;
-        }
-
-        /* Loading Overlay for Large Data */
-        #loading-overlay {
-            display: none; position: absolute; inset: 0; background: rgba(255,255,255,0.9);
-            z-index: 110; flex-direction: column; align-items: center; justify-content: center;
-            border-radius: 20px;
-        }
 
         #flash {
             position: absolute; inset: 0; background: white; opacity: 0; 
@@ -98,99 +73,63 @@
     <div id="history-container">
         <div class="stats-bar">
             <span>Recent: <span id="visible-count" class="stat-highlight">0/50</span></span>
-            <span>Session Total: <span id="total-count" class="stat-highlight">0</span></span>
+            <span>Session: <span id="total-count" class="stat-highlight">0</span></span>
         </div>
 
         <div class="action-row">
             <button id="toggle-btn" onclick="toggleCamera()" class="btn btn-primary">
-                <i data-lucide="camera"></i> <span id="toggle-text">Start</span>
+                <i data-lucide="camera"></i> <span id="toggle-text">Start Camera</span>
             </button>
             <button onclick="exportToCSV()" class="btn btn-outline">
-                <i data-lucide="download"></i> Export
-            </button>
-            <button onclick="openDBModal()" class="btn btn-outline">
-                <i data-lucide="database"></i> Data
+                <i data-lucide="download"></i> Export CSV
             </button>
         </div>
 
         <div id="scans-list" class="history-list"></div>
     </div>
 
-    <!-- Database Setup Modal -->
-    <div id="db-modal">
-        <div class="modal-content" style="position: relative;">
-            <div id="loading-overlay">
-                <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
-                <p style="font-weight: bold; margin-top: 15px;">Processing Large Dataset...</p>
-            </div>
-
-            <h2 style="margin-top:0">Database Setup</h2>
-            <p style="font-size: 0.8rem; color: #64748b;">Paste columns from Excel (supports 10,000+ rows):</p>
-            
-            <label style="font-size: 0.75rem; font-weight: bold; color: var(--success);">APPROVED LIST</label>
-            <textarea id="input-approved" placeholder="Paste codes..."></textarea>
-            
-            <label style="font-size: 0.75rem; font-weight: bold; margin-top:10px; display:block; color: var(--danger);">NOT APPROVED LIST</label>
-            <textarea id="input-not-approved" placeholder="Paste codes..."></textarea>
-
-            <label style="font-size: 0.75rem; font-weight: bold; margin-top:10px; display:block; color: var(--warning);">RE-PACK LIST</label>
-            <textarea id="input-repack" placeholder="Paste codes..."></textarea>
-
-            <div class="action-row" style="margin-top:20px;">
-                <button onclick="closeDBModal()" class="btn btn-outline">Cancel</button>
-                <button onclick="processDatabase()" class="btn btn-primary">Save Database</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // Use Sets for O(1) Lookup Speed (Instant regardless of size)
-        let DB = { APPROVED: new Set(), NOT_APPROVED: new Set(), REPACK: new Set() };
+        // ============================================================
+        // === DATABASE INPUT SECTION ===
+        // Paste your barcodes inside the square brackets [ ]
+        // Each barcode must be in quotes ' ' and separated by a comma.
+        // ============================================================
+        
+        const RAW_APPROVED = [
+            '8850001234567',
+            '8850001234568',
+            'SAMPLE001'
+            // ... add thousands more here
+        ];
+
+        const RAW_NOT_APPROVED = [
+            '9950001234567',
+            'SAMPLE002'
+            // ... add thousands more here
+        ];
+
+        const RAW_REPACK = [
+            '7750001234567',
+            'SAMPLE003'
+            // ... add thousands more here
+        ];
+
+        // ============================================================
+        // === END OF DATABASE INPUT ===
+        // ============================================================
+
+        // Convert arrays to Sets for high-performance O(1) lookups
+        const DB = {
+            APPROVED: new Set(RAW_APPROVED),
+            NOT_APPROVED: new Set(RAW_NOT_APPROVED),
+            REPACK: new Set(RAW_REPACK)
+        };
+
         let scanHistory = [];
         let isScanning = false;
         const html5QrCode = new Html5Qrcode("reader");
 
-        /**
-         * LARGE DATA OPTIMIZATION: 
-         * Instead of .split().map().filter(), we use a custom parser 
-         * that handles memory more efficiently for 10,000+ entries.
-         */
-        function processDatabase() {
-            document.getElementById('loading-overlay').style.display = 'flex';
-            
-            // Use setTimeout to allow UI to render the loading spinner before heavy processing
-            setTimeout(() => {
-                try {
-                    DB.APPROVED = fastParse('input-approved');
-                    DB.NOT_APPROVED = fastParse('input-not-approved');
-                    DB.REPACK = fastParse('input-repack');
-
-                    alert(`Database Synced!\nTotal Records: ${DB.APPROVED.size + DB.NOT_APPROVED.size + DB.REPACK.size}`);
-                    closeDBModal();
-                } catch (e) {
-                    alert("Error processing data. Ensure format is correct.");
-                } finally {
-                    document.getElementById('loading-overlay').style.display = 'none';
-                }
-            }, 100);
-        }
-
-        function fastParse(id) {
-            const text = document.getElementById(id).value;
-            const newSet = new Set();
-            // Optimized line-by-line regex to avoid creating massive intermediate arrays
-            const lines = text.match(/[^\r\n]+/g); 
-            if (lines) {
-                for (let i = 0; i < lines.length; i++) {
-                    const val = lines[i].trim();
-                    if (val) newSet.add(val);
-                }
-            }
-            return newSet;
-        }
-
         function getStatus(code) {
-            // Set.has() is O(1) - it doesn't slow down as the database grows
             if (DB.APPROVED.has(code)) return "Approved";
             if (DB.NOT_APPROVED.has(code)) return "Not Approved";
             if (DB.REPACK.has(code)) return "Re-pack";
@@ -200,10 +139,8 @@
         function renderList() {
             const listElement = document.getElementById('scans-list');
             const total = scanHistory.length;
-            
-            // PERFORMANCE: Only render the last 50 items in the DOM.
-            // Keeping 10,000 items in the HTML DOM will crash the phone browser.
             const visible = Math.min(total, 50);
+            
             document.getElementById('visible-count').innerText = `${visible}/50`;
             document.getElementById('total-count').innerText = total;
             
@@ -222,24 +159,18 @@
 
         function exportToCSV() {
             if (scanHistory.length === 0) return alert("No scans to export");
-
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            const filename = `scans_${timestamp}.csv`;
-
-            // Efficient CSV generation
             let csvContent = "Barcode,Status,Time\n";
             for (let i = 0; i < scanHistory.length; i++) {
                 const e = scanHistory[i];
                 csvContent += `"${e.code}","${e.status}","${e.time}"\n`;
             }
-            
             const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = filename;
+            a.download = `scans_${timestamp}.csv`;
             a.click();
-
             setTimeout(() => {
                 if(confirm("Export complete. Clear history?")) {
                     scanHistory = [];
@@ -258,28 +189,24 @@
                     );
                     isScanning = true;
                     btn.className = "btn btn-stop";
-                    document.getElementById('toggle-text').innerText = "Stop";
-                } catch (err) { alert("Camera access denied or not found."); }
+                    document.getElementById('toggle-text').innerText = "Stop Camera";
+                } catch (err) { alert("Camera Error: " + err); }
             } else {
                 await html5QrCode.stop();
                 isScanning = false;
                 btn.className = "btn btn-primary";
-                document.getElementById('toggle-text').innerText = "Start";
+                document.getElementById('toggle-text').innerText = "Start Camera";
             }
         }
 
         function onScanSuccess(decodedText) {
-            // Debounce: Prevent duplicate scans of the same code within 2 seconds
-            if (scanHistory.length > 0 && scanHistory[0].code === decodedText) {
-                return; 
-            }
+            // Debounce: ignore if same code scanned in last 2 seconds
+            if (scanHistory.length > 0 && scanHistory[0].code === decodedText) return;
 
-            // Visual/Haptic Feedback
             document.getElementById('flash').classList.add('flash-active');
             setTimeout(() => document.getElementById('flash').classList.remove('flash-active'), 150);
             if (navigator.vibrate) navigator.vibrate(60);
 
-            // Add to history
             scanHistory.unshift({
                 code: decodedText,
                 status: getStatus(decodedText),
@@ -289,16 +216,7 @@
             renderList();
         }
 
-        function openDBModal() { document.getElementById('db-modal').style.display = 'block'; }
-        function closeDBModal() { document.getElementById('db-modal').style.display = 'none'; }
-
-        // Initialize Lucide Icons
         lucide.createIcons();
-
-        // CSS Spinner animation
-        const style = document.createElement('style');
-        style.innerHTML = `@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`;
-        document.head.appendChild(style);
     </script>
 </body>
 </html>
