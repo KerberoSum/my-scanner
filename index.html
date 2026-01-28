@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fixed Focus Barcode Scanner</title>
+    <title>Barcode Scanner Pro</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
             --primary: #2563eb;
+            --primary-hover: #1d4ed8;
             --success: #22c55e;
             --danger: #ef4444;
             --bg: #f8fafc;
+            --dark: #0f172a;
         }
 
         * { box-sizing: border-box; }
@@ -19,20 +22,23 @@
             font-family: -apple-system, system-ui, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #000; /* Dark background for camera area */
+            background-color: #000;
             height: 100vh;
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
 
-        /* 1. CAMERA SECTION (Top 40%) */
+        /* CAMERA SECTION (Top 40%) */
         #scanner-wrapper {
             position: relative;
             height: 40vh;
             width: 100%;
             overflow: hidden;
-            background: #000;
+            background: #1e293b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #reader {
@@ -41,11 +47,22 @@
             border: none !important;
         }
 
-        /* Critical: Force the video to fill the container and stay centered */
         #reader video {
             width: 100% !important;
             height: 100% !important;
             object-fit: cover !important; 
+        }
+
+        /* Placeholder UI when camera is off */
+        #camera-placeholder {
+            position: absolute;
+            text-align: center;
+            color: #94a3b8;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
 
         /* Hide library UI clutter */
@@ -55,16 +72,7 @@
             display: none !important;
         }
 
-        #reader button {
-            background-color: var(--primary) !important;
-            color: white !important;
-            border: none !important;
-            padding: 12px 24px !important;
-            border-radius: 8px !important;
-            font-weight: bold !important;
-        }
-
-        /* 2. HISTORY SECTION (Bottom 60%) */
+        /* HISTORY SECTION (Bottom 60%) */
         #history-container {
             height: 60vh;
             display: flex;
@@ -77,18 +85,44 @@
             box-shadow: 0 -10px 20px rgba(0,0,0,0.2);
         }
 
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        .btn-camera-toggle {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .camera-off { background: var(--primary); color: white; }
+        .camera-on { background: var(--danger); color: white; }
+
         .history-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
-            flex-shrink: 0;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
         }
 
         .history-list {
             flex-grow: 1;
             overflow-y: auto;
-            padding-right: 5px;
+            padding-bottom: 20px;
         }
 
         /* Scan Item Card */
@@ -96,37 +130,56 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px;
+            padding: 12px 15px;
             background: white;
             border-radius: 12px;
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border-left: 5px solid #cbd5e1;
+            border-left: 5px solid var(--primary);
+            animation: slideIn 0.2s ease-out;
         }
 
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .item-details { flex-grow: 1; }
         .code-val {
             display: block;
             font-family: 'Courier New', monospace;
             font-weight: bold;
             font-size: 1rem;
-            color: #1e293b;
+            color: var(--dark);
+        }
+        .code-time { font-size: 0.75rem; color: #64748b; }
+
+        .btn-delete {
+            background: #fee2e2;
+            color: var(--danger);
+            border: none;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
         }
 
-        .code-time {
-            font-size: 0.75rem;
-            color: #64748b;
+        .btn-export {
+            background: #f1f5f9;
+            color: var(--dark);
+            border: 1px solid #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.8rem;
         }
 
-        .badge {
-            font-size: 0.7rem;
-            font-weight: bold;
-            padding: 4px 10px;
-            border-radius: 20px;
-            text-transform: uppercase;
+        .btn-clear {
+            color: var(--danger);
+            background: none;
+            border: none;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
-        .bg-approved { background: #dcfce7; color: #166534; border-left-color: #22c55e !important; }
-        .bg-rejected { background: #fee2e2; color: #991b1b; border-left-color: #ef4444 !important; }
-        .bg-repack { background: #fef3c7; color: #92400e; border-left-color: #f59e0b !important; }
 
         #flash {
             position: absolute;
@@ -146,122 +199,173 @@
 <body>
 
     <div id="scanner-wrapper">
+        <div id="camera-placeholder">
+            <i data-lucide="camera-off" style="width: 48px; height: 48px;"></i>
+            <span>Camera is Off</span>
+        </div>
         <div id="reader"></div>
         <div id="flash"></div>
     </div>
 
     <div id="history-container">
+        <!-- Main Controls -->
+        <div class="controls-row">
+            <button id="toggle-btn" onclick="toggleCamera()" class="btn-camera-toggle camera-off">
+                <i data-lucide="camera" id="toggle-icon"></i>
+                <span id="toggle-text">Start Camera</span>
+            </button>
+            <button onclick="exportToCSV()" class="btn-export">
+                <i data-lucide="download" style="width:14px; height:14px; vertical-align: middle; margin-right:4px;"></i>Export CSV
+            </button>
+        </div>
+
         <div class="history-header">
-            <h2 style="margin:0; font-size: 1.2rem;">Scan History</h2>
-            <button onclick="clearAll()" style="color: var(--danger); background: none; border: none; font-weight: 600; cursor: pointer;">Clear</button>
+            <h2 style="margin:0; font-size: 1rem; color: #64748b;">HISTORY (<span id="count">0</span>)</h2>
+            <button onclick="clearAll()" class="btn-clear">Clear All</button>
         </div>
         
         <div id="scans-list" class="history-list">
-            <div id="empty-state" style="text-align: center; color: #94a3b8; margin-top: 50px;">
-                Ready to scan...
+            <div id="empty-state" style="text-align: center; color: #94a3b8; margin-top: 40px;">
+                No scans yet
             </div>
         </div>
     </div>
 
     <script>
-        const DB = {
-            "APPROVED": ["123456", "ABC-100"],
-            "REJECTED": ["654321", "ERR-999"],
-            "REPACK": ["112233"]
-        };
-
+        let scanHistory = [];
         let lastCode = "";
         let lastTime = 0;
+        let isScanning = false;
+        const html5QrCode = new Html5Qrcode("reader");
+
+        async function toggleCamera() {
+            const btn = document.getElementById('toggle-btn');
+            const text = document.getElementById('toggle-text');
+            const placeholder = document.getElementById('camera-placeholder');
+
+            if (!isScanning) {
+                // START CAMERA
+                try {
+                    const qrboxFunction = (viewfinderWidth, viewfinderHeight) => {
+                        const minDimension = Math.min(viewfinderWidth, viewfinderHeight);
+                        const size = Math.floor(minDimension * 0.7);
+                        return { width: size, height: Math.floor(size * 0.6) };
+                    };
+
+                    await html5QrCode.start(
+                        { facingMode: "environment" }, 
+                        { fps: 20, qrbox: qrboxFunction },
+                        onScanSuccess
+                    );
+
+                    isScanning = true;
+                    btn.className = "btn-camera-toggle camera-on";
+                    text.innerText = "Stop Camera";
+                    placeholder.style.display = "none";
+                    updateIcons('video-off', 'toggle-icon');
+                } catch (err) {
+                    alert("Camera access denied or error: " + err);
+                }
+            } else {
+                // STOP CAMERA
+                await html5QrCode.stop();
+                isScanning = false;
+                btn.className = "btn-camera-toggle camera-off";
+                text.innerText = "Start Camera";
+                placeholder.style.display = "flex";
+                updateIcons('camera', 'toggle-icon');
+            }
+        }
 
         function onScanSuccess(decodedText) {
             const now = Date.now();
-            // Prevent duplicate scans within 2 seconds
             if (decodedText === lastCode && (now - lastTime) < 2000) return;
 
             lastCode = decodedText;
             lastTime = now;
 
-            // Visual Flash
+            // Flash effect
             const flash = document.getElementById('flash');
             flash.classList.remove('flash-active');
             void flash.offsetWidth; 
             flash.classList.add('flash-active');
 
-            if (navigator.vibrate) navigator.vibrate(70);
+            if (navigator.vibrate) navigator.vibrate(50);
 
-            addToList(decodedText);
+            scanHistory.unshift({
+                id: Date.now(),
+                code: decodedText,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            });
+            renderList();
         }
 
-        function addToList(code) {
+        function renderList() {
             const list = document.getElementById('scans-list');
-            const emptyState = document.getElementById('empty-state');
-            if (emptyState) emptyState.remove();
-
-            let status = "UNKNOWN";
-            let badgeClass = "";
-
-            if (DB.APPROVED.includes(code)) {
-                status = "Approved";
-                badgeClass = "bg-approved";
-            } else if (DB.REJECTED.includes(code)) {
-                status = "Rejected";
-                badgeClass = "bg-rejected";
-            } else if (DB.REPACK.includes(code)) {
-                status = "Re-pack";
-                badgeClass = "bg-repack";
+            document.getElementById('count').innerText = scanHistory.length;
+            
+            if (scanHistory.length === 0) {
+                list.innerHTML = '<div id="empty-state" style="text-align: center; color: #94a3b8; margin-top: 40px;">No scans yet</div>';
+                return;
             }
 
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            const item = document.createElement('div');
-            item.className = `scan-item ${badgeClass}`;
-            item.innerHTML = `
-                <div>
-                    <span class="code-val">${code}</span>
-                    <span class="code-time">${time}</span>
-                </div>
-                <span class="badge ${badgeClass}">${status}</span>
-            `;
+            list.innerHTML = '';
+            scanHistory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'scan-item';
+                div.innerHTML = `
+                    <div class="item-details">
+                        <span class="code-val">${item.code}</span>
+                        <span class="code-time">${item.time}</span>
+                    </div>
+                    <button class="btn-delete" onclick="deleteItem(${item.id})">
+                        <i data-lucide="trash-2" style="width:18px; height:18px;"></i>
+                    </button>
+                `;
+                list.appendChild(div);
+            });
+            lucide.createIcons();
+        }
 
-            list.insertBefore(item, list.firstChild);
+        function deleteItem(id) {
+            if (confirm("Delete this record?")) {
+                scanHistory = scanHistory.filter(item => item.id !== id);
+                renderList();
+            }
         }
 
         function clearAll() {
-            if (confirm("Clear history?")) {
-                document.getElementById('scans-list').innerHTML = '<div id="empty-state" style="text-align: center; color: #94a3b8; margin-top: 50px;">Ready to scan...</div>';
+            if (scanHistory.length === 0) return;
+            if (confirm("Clear all history?")) {
+                scanHistory = [];
                 lastCode = "";
+                renderList();
             }
         }
 
-        // Initialize Scanner
-        const html5QrCode = new Html5Qrcode("reader");
-        
-        // This function ensures the focus box fits perfectly in the 40vh area
-        const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-            let minEdgePercentage = 0.7; 
-            let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-            let qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
-            
-            return {
-                width: qrboxSize,
-                height: Math.floor(qrboxSize / 1.5) // Rectangular for barcodes
-            };
+        function exportToCSV() {
+            if (scanHistory.length === 0) {
+                alert("Nothing to export");
+                return;
+            }
+            const csvRows = ["Barcode"];
+            scanHistory.forEach(item => csvRows.push(`"${item.code}"`));
+            const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `barcodes_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
         }
 
-        const config = { 
-            fps: 20, 
-            qrbox: qrboxFunction,
-            aspectRatio: undefined // Let the CSS handle the aspect ratio
-        };
+        function updateIcons(iconName, elementId) {
+            const iconEl = document.getElementById(elementId);
+            iconEl.setAttribute('data-lucide', iconName);
+            lucide.createIcons();
+        }
 
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            config,
-            onScanSuccess
-        ).catch(err => {
-            console.error(err);
-            document.getElementById('reader').innerHTML = `<div style="color:white; text-align:center; padding-top:50px;">Camera Access Denied or Not Found</div>`;
-        });
+        // Init icons on load
+        lucide.createIcons();
     </script>
 </body>
 </html>
