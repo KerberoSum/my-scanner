@@ -24,10 +24,10 @@
             overflow: hidden;
         }
 
-        /* Top 40% - Scanner Section */
+        /* Top 30% - Scanner Section */
         #scanner-container { 
             position: relative; 
-            height: 40vh; 
+            height: 30vh; 
             width: 100%;
             background: #000;
             overflow: hidden;
@@ -47,14 +47,14 @@
             object-fit: cover; 
         }
 
-        /* Viewfinder Box - Narrowed by 50% */
+        /* Viewfinder Box */
         .viewfinder-box {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 260px;
-            height: 80px; 
+            width: 240px;
+            height: 60px; 
             border: 2px solid rgba(255,255,255,0.3);
             border-radius: 12px;
             z-index: 20;
@@ -83,9 +83,9 @@
             transform: translateY(-50%);
         }
 
-        /* Bottom 60% - History Section */
+        /* Bottom 70% - History Section */
         #history-container {
-            height: 60vh;
+            height: 70vh;
             width: 100%;
             background: var(--bg);
             border-top-left-radius: 24px;
@@ -105,14 +105,42 @@
         }
         .stat-highlight { color: var(--primary); font-weight: 800; }
 
-        /* Actions Grid - 4 columns for Import/Export/Start/Clear */
         .action-grid { 
             display: grid; 
             grid-template-columns: 1fr 1fr 1fr 1fr; 
             gap: 6px; 
-            margin-bottom: 16px; 
+            margin-bottom: 12px; 
         }
         
+        /* Manual Input Section */
+        .manual-input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            background: white;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .manual-input-group input {
+            flex-grow: 1;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        .manual-input-group input:focus { border-color: var(--primary); }
+        .btn-manual {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
         .btn {
             border: none; border-radius: 10px; padding: 10px 4px; 
             font-size: 0.75rem; font-weight: 700; cursor: pointer; 
@@ -185,8 +213,8 @@
 
     <div id="history-container">
         <div class="stats-bar">
-            <span>Database: <span id="db-count" class="stat-highlight">0</span> items</span>
-            <span>Total Scanned: <span id="total-count" class="stat-highlight">0</span></span>
+            <span>DB: <span id="db-count" class="stat-highlight">0</span></span>
+            <span>Total Scans: <span id="total-count" class="stat-highlight">0</span></span>
         </div>
 
         <div class="action-grid">
@@ -208,6 +236,12 @@
             </button>
         </div>
 
+        <!-- Manual Input Box -->
+        <div class="manual-input-group">
+            <input type="text" id="manual-barcode" placeholder="Enter barcode manually..." onkeypress="if(event.key==='Enter') handleManualSubmit()">
+            <button class="btn-manual" onclick="handleManualSubmit()">Submit</button>
+        </div>
+
         <div id="scans-list" class="history-list">
             <div style="text-align:center; color:#94a3b8; margin-top:40px; font-size:0.9rem;">
                 Import Excel or Start Scanning
@@ -217,7 +251,7 @@
 
     <script>
         // === DATABASE STATE ===
-        let masterDatabase = new Map(); // Key: Barcode, Value: {status, info1, info2}
+        let masterDatabase = new Map(); 
         let scanHistory = [];
         let isScanning = false;
         let lastScanTime = 0;
@@ -235,14 +269,9 @@
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                
-                // Convert sheet to JSON (Array of Arrays)
                 const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
-                // Clear existing DB
                 masterDatabase.clear();
-                
-                // Process rows (assuming Row 0 might be headers, but we process all)
                 rows.forEach(row => {
                     const barcode = String(row[0] || '').trim();
                     if (barcode) {
@@ -256,7 +285,7 @@
 
                 document.getElementById('db-count').innerText = masterDatabase.size;
                 alert(`Successfully imported ${masterDatabase.size} items.`);
-                event.target.value = ''; // Reset input
+                event.target.value = '';
             };
             reader.readAsArrayBuffer(file);
         }
@@ -266,6 +295,32 @@
                 return masterDatabase.get(code);
             }
             return { status: "Unknown", info1: "Not in database", info2: "" };
+        }
+
+        // --- Manual Input Handler ---
+        function handleManualSubmit() {
+            const input = document.getElementById('manual-barcode');
+            const code = input.value.trim();
+            if (!code) return;
+            
+            processBarcode(code);
+            input.value = ''; // Clear input
+            input.focus();
+        }
+
+        // --- Core Processing Logic ---
+        function processBarcode(code) {
+            const data = getBarcodeData(code);
+
+            scanHistory.unshift({
+                code: code,
+                status: data.status,
+                info1: data.info1,
+                info2: data.info2,
+                time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            });
+            
+            renderList();
         }
 
         // --- UI & History Logic ---
@@ -361,7 +416,7 @@
                         { facingMode: "environment" }, 
                         { 
                             fps: 20, 
-                            qrbox: { width: 260, height: 80 }, 
+                            qrbox: { width: 240, height: 60 }, 
                             aspectRatio: 1.0 
                         },
                         onScanSuccess
@@ -380,7 +435,7 @@
 
         function onScanSuccess(decodedText) {
             const now = Date.now();
-            if (now - lastScanTime < 1000) return; // 1s Interval
+            if (now - lastScanTime < 1000) return; 
             lastScanTime = now;
 
             const flash = document.getElementById('flash');
@@ -390,17 +445,7 @@
             
             if (navigator.vibrate) navigator.vibrate(50);
 
-            const data = getBarcodeData(decodedText);
-
-            scanHistory.unshift({
-                code: decodedText,
-                status: data.status,
-                info1: data.info1,
-                info2: data.info2,
-                time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            });
-            
-            renderList();
+            processBarcode(decodedText);
         }
 
         lucide.createIcons();
